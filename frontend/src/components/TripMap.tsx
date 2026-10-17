@@ -84,8 +84,9 @@ export default function TripMap({ plan, activeDay }: TripMapProps) {
       <MapContainer center={center} zoom={11} scrollWheelZoom={true}
         style={{ height: '100%', width: '100%', borderRadius: '16px' }}>
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors &bull; <a href="https://carto.com/">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maxZoom={19}
         />
         <FitBounds points={allPoints} />
 

@@ -8,6 +8,53 @@ export type TripRequest = {
   travelStyle: 'budget' | 'balanced' | 'comfort';
   preferredTransport: 'cheapest' | 'fastest' | 'train' | 'bus' | 'flight' | 'car';
   interests: string[];
+  notes?: string;
+  apiKey?: string;
+};
+
+export type ChatMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp?: string;
+};
+
+export type ModifyTripRequest = {
+  currentPlan: TripPlanResponse;
+  message: string;
+  conversationHistory?: ChatMessage[];
+  apiKey?: string;
+};
+
+export type ModifyTripResponse = {
+  updatedPlan: TripPlanResponse;
+  replyMessage: string;
+  changesMade: string[];
+};
+
+export type User = {
+  id: string;
+  email: string;
+  name: string;
+  pictureUrl?: string;
+};
+
+export type AuthResponse = {
+  token: string;
+  user: User;
+  message: string;
+};
+
+export type SavedTripSummary = {
+  id: string;
+  origin: string;
+  destination: string;
+  startDate: string;
+  endDate: string;
+  travelers: number;
+  budgetInr: number;
+  totalCostInr: number;
+  summary: string;
+  createdAt: string;
 };
 
 export type PlaceCard = {

@@ -87,6 +87,10 @@ public class TripPlannerService {
                 bookingLinkService.mapUrl(request));
     }
 
+    public com.tripwise.api.dto.ModifyTripResponse modify(com.tripwise.api.dto.ModifyTripRequest request) {
+        return aiPlannerService.modify(request);
+    }
+
     private void validate(TripRequest request) {
         if (request.startDate() == null || request.endDate() == null) {
             throw new IllegalArgumentException("Please provide both a departure date and a return date.");

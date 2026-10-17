@@ -17,5 +17,13 @@ public record TripRequest(
         @Min(1000) int budgetInr,
         String travelStyle,
         String preferredTransport,
-        List<String> interests
-) {}
+        List<String> interests,
+        String notes,
+        String apiKey
+) {
+    public TripRequest(String origin, String destination, LocalDate startDate, LocalDate endDate,
+                       int travelers, int budgetInr, String travelStyle, String preferredTransport,
+                       List<String> interests) {
+        this(origin, destination, startDate, endDate, travelers, budgetInr, travelStyle, preferredTransport, interests, null, null);
+    }
+}

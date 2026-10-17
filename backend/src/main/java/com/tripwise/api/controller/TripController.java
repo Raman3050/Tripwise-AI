@@ -31,4 +31,9 @@ public class TripController {
     public ResponseEntity<TripPlanResponse> plan(@Valid @RequestBody TripRequest request) {
         return ResponseEntity.ok(tripPlannerService.plan(request));
     }
+
+    @PostMapping("/trips/modify")
+    public ResponseEntity<com.tripwise.api.dto.ModifyTripResponse> modify(@RequestBody com.tripwise.api.dto.ModifyTripRequest request) {
+        return ResponseEntity.ok(tripPlannerService.modify(request));
+    }
 }

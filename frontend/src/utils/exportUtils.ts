@@ -1,212 +1,318 @@
 import { jsPDF } from 'jspdf';
 import type { TripPlanResponse } from '../types';
 
-const money = (amount: number) =>
-  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount || 0);
+// Safe currency formatter for PDF (jsPDF standard Helvetica does not support Unicode ₹)
+const moneyPdf = (amount: number) =>
+  'Rs. ' + Math.round(amount || 0).toLocaleString('en-IN');
 
-const dateLabel = (value: string) =>
-  new Date(`${value}T12:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+const dateLabel = (value: string) => {
+  try {
+    return new Date(`${value}T12:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch {
+    return value;
+  }
+};
+
+/**
+ * Sanitizes any text string for jsPDF standard fonts.
+ * Replaces Unicode punctuation, currency symbols, and emojis with safe ASCII equivalents.
+ */
+function sanitizePdfText(input: string | null | undefined): string {
+  if (!input) return '';
+  return input
+    .replace(/₹/g, 'Rs. ')
+    .replace(/[—–]/g, '-')
+    .replace(/→/g, '->')
+    .replace(/←/g, '<-')
+    .replace(/•/g, '*')
+    .replace(/★/g, '[*]')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/…/g, '...')
+    .replace(/[^\x00-\x7F]/g, ' ') // Strip emojis and unprintable non-ASCII bytes
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 export function exportTripPDF(plan: TripPlanResponse) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 18;
+  const margin = 16;
   const contentWidth = pageWidth - margin * 2;
-  let y = 20;
+  let y = 18;
 
   const checkPageBreak = (needed: number) => {
-    if (y + needed > 275) { doc.addPage(); y = 20; }
+    if (y + needed > 275) {
+      doc.addPage();
+      y = 18;
+    }
   };
 
-  // ─── Title ───
-  doc.setFontSize(24);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(36, 55, 77);
-  doc.text('Tripwise AI — Your Trip Plan', margin, y);
-  y += 12;
+  // ─── Header Bar Accent ───
+  doc.setFillColor(37, 99, 235); // Tripwise royal blue
+  doc.rect(margin, y, 4, 16, 'F');
 
-  // ─── Trip summary line ───
+  doc.setFontSize(20);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 41, 59);
+  doc.text('TRIPWISE AI', margin + 8, y + 6);
+
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 110, 130);
-  doc.text(`${plan.trip.origin}  →  ${plan.trip.destination}`, margin, y);
-  y += 6;
-  doc.text(`${dateLabel(plan.trip.startDate)} – ${dateLabel(plan.trip.endDate)}  •  ${plan.trip.travelers} travelers  •  Budget: ${money(plan.trip.budgetInr)}`, margin, y);
-  y += 10;
+  doc.setTextColor(100, 116, 139);
+  doc.text('Intelligent Travel Itinerary & Booking Guide', margin + 8, y + 13);
+  y += 22;
 
-  // ─── Summary ───
-  doc.setFontSize(10);
-  doc.setTextColor(60, 70, 90);
-  const summaryLines = doc.splitTextToSize(plan.summary, contentWidth);
-  doc.text(summaryLines, margin, y);
-  y += summaryLines.length * 5 + 8;
+  // ─── Route & Trip Details Box ───
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(margin, y, contentWidth, 24, 3, 3, 'FD');
 
-  // ─── Cost Overview ───
-  checkPageBreak(45);
+  const originSafe = sanitizePdfText(plan.trip.origin);
+  const destSafe = sanitizePdfText(plan.trip.destination);
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(36, 55, 77);
-  doc.text('Cost Estimate', margin, y);
-  y += 8;
+  doc.setTextColor(15, 23, 42);
+  doc.text(`${originSafe}  ->  ${destSafe}`, margin + 6, y + 8);
 
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(60, 70, 90);
-  const costItems = [
-    ['Transport', money(plan.costEstimate.transportCostInr)],
-    ['Accommodation', money(plan.costEstimate.accommodationCostInr)],
-    ['Food & Dining', money(plan.costEstimate.foodCostInr)],
-    ['Local Transport', money(plan.costEstimate.localTransportCostInr)],
-    ['Activities', money(plan.costEstimate.activitiesCostInr)],
-    ['Contingency', money(plan.costEstimate.contingencyInr)],
-  ];
-  costItems.forEach(([label, amount]) => {
-    doc.text(label, margin, y);
-    doc.text(amount, pageWidth - margin, y, { align: 'right' });
-    y += 5;
-  });
-  y += 2;
-  doc.setDrawColor(200, 205, 220);
-  doc.line(margin, y, pageWidth - margin, y);
-  y += 6;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text('Total', margin, y);
-  doc.text(money(plan.costEstimate.totalInr), pageWidth - margin, y, { align: 'right' });
-  y += 5;
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(130, 140, 160);
-  doc.text(`${money(plan.costEstimate.perPersonInr)} per person`, pageWidth - margin, y, { align: 'right' });
-  y += 12;
+  doc.setTextColor(71, 85, 105);
+  const startStr = dateLabel(plan.trip.startDate);
+  const endStr = dateLabel(plan.trip.endDate);
+  const infoLine = `${startStr} to ${endStr}  |  ${plan.trip.travelers} Travelers  |  Budget: ${moneyPdf(plan.trip.budgetInr)}`;
+  doc.text(infoLine, margin + 6, y + 15);
+  doc.text(`Generated on ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`, margin + 6, y + 20);
+  y += 30;
 
-  // ─── Transport Options ───
-  checkPageBreak(30);
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(36, 55, 77);
-  doc.text('Transport Options', margin, y);
-  y += 8;
-
-  plan.transportOptions.forEach((opt) => {
-    checkPageBreak(18);
-    doc.setFontSize(10);
+  // ─── Executive Summary ───
+  if (plan.summary) {
+    checkPageBreak(25);
+    doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(50, 60, 80);
-    doc.text(`${opt.name}${opt.recommended ? ' ★ Suggested' : ''}`, margin, y);
-    doc.text(money(opt.totalCostInr), pageWidth - margin, y, { align: 'right' });
-    y += 5;
+    doc.setTextColor(30, 41, 59);
+    doc.text('Trip Overview', margin, y);
+    y += 6;
+
+    doc.setFontSize(9.5);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 110, 130);
-    doc.text(`${opt.durationLabel}  •  ${money(opt.perPersonCostInr)}/person  •  ${opt.pricingLabel}`, margin, y);
-    y += 7;
+    doc.setTextColor(51, 65, 85);
+    const cleanSummary = sanitizePdfText(plan.summary);
+    const summaryLines = doc.splitTextToSize(cleanSummary, contentWidth);
+    doc.text(summaryLines, margin, y);
+    y += summaryLines.length * 4.8 + 8;
+  }
+
+  // ─── Cost Breakdown ───
+  checkPageBreak(50);
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 41, 59);
+  doc.text('Estimated Cost Breakdown', margin, y);
+  y += 6;
+
+  const costItems: [string, number][] = [
+    ['Main Transport', plan.costEstimate.transportCostInr],
+    ['Accommodation', plan.costEstimate.accommodationCostInr],
+    ['Food & Dining', plan.costEstimate.foodCostInr],
+    ['Local Cab / Transit', plan.costEstimate.localTransportCostInr],
+    ['Activities & Entry', plan.costEstimate.activitiesCostInr],
+    ['Contingency Buffer', plan.costEstimate.contingencyInr],
+  ];
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+
+  costItems.forEach(([label, amount]) => {
+    doc.text(label, margin, y);
+    doc.text(moneyPdf(amount), pageWidth - margin, y, { align: 'right' });
+    y += 5;
   });
+
+  doc.setDrawColor(203, 213, 225);
+  doc.line(margin, y, pageWidth - margin, y);
   y += 5;
 
+  doc.setFontSize(10.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('Total Estimated Cost', margin, y);
+  doc.text(moneyPdf(plan.costEstimate.totalInr), pageWidth - margin, y, { align: 'right' });
+  y += 5;
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text(`${moneyPdf(plan.costEstimate.perPersonInr)} per person`, pageWidth - margin, y, { align: 'right' });
+  y += 10;
+
+  // ─── Transport Options ───
+  if (plan.transportOptions && plan.transportOptions.length > 0) {
+    checkPageBreak(35);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text('Transport Options', margin, y);
+    y += 6;
+
+    plan.transportOptions.forEach((opt) => {
+      checkPageBreak(16);
+      doc.setFontSize(9.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      const name = sanitizePdfText(opt.name) + (opt.recommended ? ' [Recommended]' : '');
+      doc.text(name, margin, y);
+      doc.text(moneyPdf(opt.totalCostInr), pageWidth - margin, y, { align: 'right' });
+      y += 4.5;
+
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      const sub = `${sanitizePdfText(opt.durationLabel)}  |  ${moneyPdf(opt.perPersonCostInr)}/person  |  ${sanitizePdfText(opt.pricingLabel)}`;
+      doc.text(sub, margin, y);
+      y += 6;
+    });
+    y += 4;
+  }
+
   // ─── Day-by-Day Itinerary ───
+  checkPageBreak(30);
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 41, 59);
+  doc.text('Day-by-Day Itinerary', margin, y);
+  y += 8;
+
   plan.itinerary.forEach((day) => {
     checkPageBreak(30);
-    doc.setFontSize(13);
+
+    // Day Header
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(margin, y - 4, contentWidth, 10, 2, 2, 'F');
+
+    doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(36, 55, 77);
-    doc.text(`Day ${day.dayNumber} — ${dateLabel(day.date)}`, margin, y);
-    y += 6;
-    doc.setFontSize(11);
-    doc.text(day.title, margin, y);
-    y += 6;
+    doc.setTextColor(37, 99, 235);
+    doc.text(`Day ${day.dayNumber}: ${sanitizePdfText(day.title)}`, margin + 4, y + 2.5);
 
-    doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 110, 130);
-    const narrativeLines = doc.splitTextToSize(day.narrative, contentWidth);
-    doc.text(narrativeLines, margin, y);
-    y += narrativeLines.length * 4 + 4;
+    doc.setFontSize(8.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(dateLabel(day.date), pageWidth - margin - 4, y + 2.5, { align: 'right' });
+    y += 11;
 
-    day.activities.forEach((act) => {
-      checkPageBreak(20);
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(80, 95, 120);
-      doc.text(`${act.startTime}  `, margin, y);
-      doc.setTextColor(50, 60, 80);
-      doc.text(act.placeName, margin + 16, y);
-      y += 4;
+    // Narrative
+    if (day.narrative) {
+      doc.setFontSize(8.5);
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(110, 120, 140);
-      const descLines = doc.splitTextToSize(act.description, contentWidth - 16);
-      doc.text(descLines, margin + 16, y);
-      y += descLines.length * 4;
-      doc.setTextColor(140, 150, 170);
-      doc.text(`${act.durationMinutes} min  •  ${act.travelNote}`, margin + 16, y);
-      y += 7;
+      doc.setTextColor(71, 85, 105);
+      const narrativeLines = doc.splitTextToSize(sanitizePdfText(day.narrative), contentWidth);
+      doc.text(narrativeLines, margin, y);
+      y += narrativeLines.length * 4 + 4;
+    }
+
+    // Activities
+    day.activities.forEach((act) => {
+      checkPageBreak(18);
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(37, 99, 235);
+      doc.text(act.startTime || '--:--', margin + 2, y);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      const placeText = sanitizePdfText(act.placeName);
+      doc.text(placeText, margin + 20, y);
+      y += 4.2;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      const descLines = doc.splitTextToSize(sanitizePdfText(act.description), contentWidth - 20);
+      doc.text(descLines, margin + 20, y);
+      y += descLines.length * 3.8;
+
+      if (act.travelNote || act.durationMinutes) {
+        doc.setFontSize(8);
+        doc.setTextColor(148, 163, 184);
+        const note = `${act.durationMinutes || 60} mins  |  ${sanitizePdfText(act.travelNote || 'Self paced')}`;
+        doc.text(note, margin + 20, y);
+        y += 4.5;
+      }
+      y += 2.5;
     });
     y += 4;
   });
 
-  // ─── Places ───
-  const placeSection = (title: string, places: TripPlanResponse['attractions']) => {
-    if (places.length === 0) return;
-    checkPageBreak(20);
-    doc.setFontSize(12);
+  // ─── Places & Stays ───
+  const addPlaceList = (sectionTitle: string, list: TripPlanResponse['attractions']) => {
+    if (!list || list.length === 0) return;
+    checkPageBreak(25);
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(36, 55, 77);
-    doc.text(title, margin, y);
-    y += 7;
-    places.slice(0, 5).forEach((p) => {
+    doc.setTextColor(30, 41, 59);
+    doc.text(sectionTitle, margin, y);
+    y += 6;
+
+    list.slice(0, 6).forEach((p) => {
       checkPageBreak(12);
-      doc.setFontSize(9);
+      doc.setFontSize(8.5);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(50, 60, 80);
-      doc.text(p.name, margin, y);
-      y += 4;
+      doc.setTextColor(15, 23, 42);
+      doc.text(sanitizePdfText(p.name), margin, y);
+      y += 3.8;
+
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(120, 130, 150);
-      doc.text(p.address || 'Location via map', margin, y);
-      y += 6;
+      doc.setTextColor(100, 116, 139);
+      doc.text(sanitizePdfText(p.address || 'Address available via map'), margin, y);
+      y += 4.5;
     });
     y += 3;
   };
 
-  placeSection('Places to Stay', plan.stays);
-  placeSection('Restaurants & Cafes', plan.restaurants);
-  placeSection('Attractions & Experiences', plan.attractions);
+  addPlaceList('Recommended Stays', plan.stays);
+  addPlaceList('Top Local Dining & Cafes', plan.restaurants);
+  addPlaceList('Must-Visit Attractions', plan.attractions);
 
   // ─── Booking Links ───
-  checkPageBreak(25);
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(36, 55, 77);
-  doc.text('Booking & Search Links', margin, y);
-  y += 7;
-  plan.bookingLinks.forEach((link) => {
-    checkPageBreak(10);
-    doc.setFontSize(9);
+  if (plan.bookingLinks && plan.bookingLinks.length > 0) {
+    checkPageBreak(25);
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(70, 85, 200);
-    doc.textWithLink(link.title, margin, y, { url: link.url });
-    y += 4;
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(120, 130, 150);
-    doc.text(link.description, margin, y);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Quick Booking Links', margin, y);
     y += 6;
-  });
+
+    plan.bookingLinks.forEach((link) => {
+      checkPageBreak(10);
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(37, 99, 235);
+      doc.textWithLink(sanitizePdfText(link.title), margin, y, { url: link.url });
+      y += 3.8;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(sanitizePdfText(link.description), margin, y);
+      y += 5;
+    });
+  }
 
   // ─── Footer ───
   checkPageBreak(15);
-  y += 5;
-  doc.setDrawColor(200, 205, 220);
+  y += 4;
+  doc.setDrawColor(226, 232, 240);
   doc.line(margin, y, pageWidth - margin, y);
-  y += 7;
+  y += 6;
+
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(150, 160, 175);
-  doc.text('Generated by Tripwise AI — Prices are estimates, not live fares. Verify before booking.', margin, y);
-  y += 4;
-  doc.text(`Generated on ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`, margin, y);
+  doc.setTextColor(148, 163, 184);
+  doc.text('Powered by Tripwise AI - Prices and schedules are estimates. Always verify before travel.', margin, y);
 
   // Save
-  const dest = plan.trip.destination.split(',')[0].trim().replace(/\s+/g, '-');
-  doc.save(`Tripwise-${dest}-${plan.trip.startDate}.pdf`);
+  const destClean = sanitizePdfText(plan.trip.destination).split(' ')[0].replace(/[^a-zA-Z0-9]/g, '');
+  doc.save(`Tripwise-${destClean || 'Trip'}-${plan.trip.startDate}.pdf`);
 }
 
 export function exportCalendarICS(plan: TripPlanResponse) {

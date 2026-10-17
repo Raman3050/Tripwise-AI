@@ -12,6 +12,10 @@ build/
 target/
 */target/
 *.class
+data/
+*/data/
+*.mv.db
+*.trace.db
 
 # Package files
 *.jar

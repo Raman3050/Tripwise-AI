@@ -6,9 +6,12 @@ import {
   RefreshCw, Route, Share2, SlidersHorizontal, Sparkles, TrainFront,
   Users, Utensils, Wallet, Calendar,
 } from 'lucide-react';
-import type { TripPlanResponse, TransportOption, PlaceCard } from '../types';
+import type { TripPlanResponse, TransportOption, PlaceCard, User } from '../types';
 import TripMap from './TripMap';
+import TripCopilot from './TripCopilot';
+import ApiKeyModal from './ApiKeyModal';
 import { exportTripPDF, exportCalendarICS, generateShareUrl } from '../utils/exportUtils';
+import { saveTripToDb } from '../api';
 
 const money = (amount: number) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount || 0);
@@ -17,14 +20,46 @@ const dateLabel = (value: string) =>
 
 interface ResultsPageProps {
   plan: TripPlanResponse;
+  currentUser?: User | null;
+  onOpenAuthModal?: () => void;
   onEditTrip: () => void;
   onNewTrip: () => void;
+  onPlanUpdate?: (updated: TripPlanResponse) => void;
 }
 
-export default function ResultsPage({ plan, onEditTrip, onNewTrip }: ResultsPageProps) {
+export default function ResultsPage({
+  plan,
+  currentUser,
+  onOpenAuthModal,
+  onEditTrip,
+  onNewTrip,
+  onPlanUpdate,
+}: ResultsPageProps) {
   const [activeDay, setActiveDay] = useState(0);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveToast, setSaveToast] = useState('');
   const [shareTooltip, setShareTooltip] = useState(false);
+  const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
+
+  const handleSaveTrip = async () => {
+    if (!currentUser) {
+      onOpenAuthModal?.();
+      return;
+    }
+    setSaving(true);
+    setSaveToast('');
+    try {
+      await saveTripToDb(plan);
+      setSaved(true);
+      setSaveToast('Saved to your database!');
+      setTimeout(() => setSaveToast(''), 3500);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to save itinerary to database');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleShare = () => {
     const url = generateShareUrl(plan);
@@ -41,11 +76,16 @@ export default function ResultsPage({ plan, onEditTrip, onNewTrip }: ResultsPage
         <button className="text-button" onClick={onEditTrip}>
           <ArrowLeft size={16} /> Edit trip details
         </button>
-        <div className="result-status">
-          <span className={`status-dot ${plan.dataMode === 'LIVE_DATA' ? 'live' : ''}`} />
-          {plan.dataMode === 'LIVE_DATA' ? 'Live place data connected' : 'Demo place data'}
-          <span className="status-divider">·</span>
-          {plan.aiMode === 'GROQ_AI' ? 'AI itinerary' : 'Smart itinerary'}
+        <div className="results-topline-right">
+          <button className="button button-outline button-small" onClick={() => setApiKeyModalOpen(true)}>
+            <Sparkles size={14} /> AI Key Settings
+          </button>
+          <div className="result-status">
+            <span className={`status-dot ${plan.dataMode === 'LIVE_DATA' ? 'live' : ''}`} />
+            {plan.dataMode === 'LIVE_DATA' ? 'Live places' : 'Curated places'}
+            <span className="status-divider">·</span>
+            {plan.aiMode === 'COPILOT_AI' ? 'Copilot Customized' : plan.aiMode === 'GROQ_AI' ? 'Groq AI Itinerary' : 'Smart Itinerary'}
+          </div>
         </div>
       </div>
 
@@ -64,11 +104,16 @@ export default function ResultsPage({ plan, onEditTrip, onNewTrip }: ResultsPage
             <a className="button button-light" href={plan.mapUrl} target="_blank" rel="noreferrer">
               Open route map <ArrowUpRight size={16} />
             </a>
-            <button className={`button ${saved ? 'button-saved' : 'button-outline-light'}`}
-              onClick={() => setSaved((s) => !s)}>
+            <button
+              className={`button ${saved ? 'button-saved-active' : 'button-outline-light'}`}
+              onClick={handleSaveTrip}
+              disabled={saving}
+              title={currentUser ? 'Save this itinerary to your database' : 'Sign in to save this trip'}
+            >
               <Heart size={16} fill={saved ? 'currentColor' : 'none'} />
-              {saved ? 'Saved for later' : 'Save this trip'}
+              {saving ? 'Saving to Database...' : saved ? 'Saved in Database ✓' : 'Save this trip'}
             </button>
+            {saveToast && <span className="save-toast-pill">{saveToast}</span>}
           </div>
         </div>
         <div className="results-hero-graphic">
@@ -149,6 +194,20 @@ export default function ResultsPage({ plan, onEditTrip, onNewTrip }: ResultsPage
           <CostRow label="Contingency" amount={plan.costEstimate.contingencyInr} icon={<Wallet size={16} />} />
           <p className="small-note">{plan.costEstimate.note}</p>
         </div>
+      </section>
+
+      {/* ─── Interactive AI Copilot Section ─── */}
+      <section className="content-section copilot-section">
+        <SectionHeader
+          eyebrow="AI-POWERED TRIP COPILOT"
+          title="Interactive Trip Assistant"
+          description="Have specific preferences? Chat with Copilot to cut down the budget, visit specific attractions first, change transport, or add customized stops."
+        />
+        <TripCopilot
+          plan={plan}
+          onPlanUpdate={(updated) => onPlanUpdate?.(updated)}
+          onOpenApiKeyModal={() => setApiKeyModalOpen(true)}
+        />
       </section>
 
       {/* ─── Interactive Map ─── */}
@@ -280,6 +339,13 @@ export default function ResultsPage({ plan, onEditTrip, onNewTrip }: ResultsPage
           Plan another trip <RefreshCw size={14} />
         </button>
       </footer>
+
+      {/* ─── API Key Settings Modal ─── */}
+      <ApiKeyModal
+        isOpen={apiKeyModalOpen}
+        onClose={() => setApiKeyModalOpen(false)}
+        onKeySaved={() => {}}
+      />
     </main>
   );
 }

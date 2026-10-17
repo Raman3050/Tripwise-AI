@@ -11,23 +11,21 @@ A full-stack starter for an AI-powered trip planner. It is deliberately designed
 - Rule-based itinerary generation if the AI API is not configured or fails.
 - Cost breakdown calculated by Java, not by the LLM.
 - Search/booking handoff links for Google Flights, IRCTC, redBus, Google Hotels/search and Google Maps.
-- Explicit `LIVE_DATA` / `DEMO_DATA` and `GROQ_AI` / `RULE_BASED` labels. Price estimates are not represented as live fares.
-
-## Important data limitations
-
-Without Booking.com/Skyscanner access, this project does **not** have live hotel room rates/availability or live flight/rail/bus fares. Geoapify provides place/location information, not bookable travel inventory. External links open a provider/search destination; they do not guarantee a fare, seat, room, or availability. Demo places and all heuristic transport prices are marked as demo/estimates.
-
-Geoapify documents a free plan with up to 3,000 credits/day. Limits and attribution requirements apply: https://www.geoapify.com/pricing/ and https://apidocs.geoapify.com/docs/places/.
-
-Groq is optional. Check currently available models in your Groq console; the configured default is `openai/gpt-oss-120b`. Model availability and rate limits can change: https://console.groq.com/docs/models.
+- Explicit `LIVE_DATA` / `DEMO_DATA` and `GROQ_AI` / `RULE_BASED` labels.
+- **Google Sign-In & Authentication**: Official Google Identity Services + instant 1-click demo login for fast hackathon presentation.
+- **Persistent Database Storage**: Spring Data JPA + H2 file database (`./data/tripwisedb`) storing complete itinerary snapshots by user and route.
+- **Interactive AI Trip Copilot**: Natural-language conversational assistant allowing users to cut budgets, customize stops, reorder places, and switch travel modes on the fly.
+- **Free Interactive Route Map**: Powered by Leaflet + OpenStreetMap with zero mandatory API key requirements.
+- **Export & Share**: Multi-page PDF generation via jsPDF + autoTable and calendar export (`.ics`).
 
 ## Requirements
 
 - Java 21+
-- Network access on first Maven Wrapper run (the project uses Spring Boot 3.5.16)
 - Node.js 20.19+ or 22.12+
-- A Geoapify key (optional, for live location data)
-- A Groq key (optional, for AI-written itineraries)
+- Maven (included `./mvnw`)
+- A Geoapify key (optional, for live place data)
+- A Groq key (optional, for LLM itinerary generation)
+- A Google Cloud OAuth Client ID (optional, for official Google login)
 
 ## Start backend
 
@@ -37,7 +35,7 @@ From `backend/`:
 # macOS/Linux
 export GEOAPIFY_API_KEY="your_key_here"  # optional
 export GROQ_API_KEY="your_key_here"      # optional
-export GROQ_MODEL="openai/gpt-oss-120b"  # optional
+export GOOGLE_CLIENT_ID="your_client_id" # optional
 ./mvnw spring-boot:run
 ```
 
@@ -46,11 +44,12 @@ PowerShell:
 ```powershell
 $env:GEOAPIFY_API_KEY="your_key_here"
 $env:GROQ_API_KEY="your_key_here"
-$env:GROQ_MODEL="openai/gpt-oss-120b"
+$env:GOOGLE_CLIENT_ID="your_client_id"
 .\mvnw.cmd spring-boot:run
 ```
 
 Backend runs on http://localhost:8080.
+H2 Database Console is accessible at http://localhost:8080/h2-console (`jdbc:h2:file:./data/tripwisedb`).
 
 ## Start frontend
 
@@ -58,46 +57,25 @@ From `frontend/`:
 
 ```bash
 npm install
-cp .env.example .env.local
 npm run dev
 ```
 
-Open the URL printed by Vite, usually http://localhost:5173.
+Frontend runs on http://localhost:5173.
 
-## API request example
+## Key API Endpoints
 
-```bash
-curl -X POST http://localhost:8080/api/trips/plan \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "origin":"Delhi, India",
-    "destination":"Jaipur, India",
-    "startDate":"2026-11-15",
-    "endDate":"2026-11-18",
-    "travelers":2,
-    "budgetInr":30000,
-    "travelStyle":"balanced",
-    "preferredTransport":"cheapest",
-    "interests":["culture","food","photography"]
-  }'
-```
-
-## API configuration
-
-| Variable | Purpose | Required |
+| Method | Endpoint | Description |
 |---|---|---|
-| `GEOAPIFY_API_KEY` | Geocoding, POIs and route distance/time | No; demo fixtures are used if absent/failing |
-| `GROQ_API_KEY` | Optional AI itinerary draft | No; rule-based planning is used if absent/failing |
-| `GROQ_MODEL` | Groq model ID | No; defaults to `openai/gpt-oss-120b` |
-| `FRONTEND_ORIGIN` | CORS origin | No; defaults to `http://localhost:5173` |
+| `POST` | `/api/trips/plan` | Generate AI/rule-based trip plan |
+| `POST` | `/api/trips/modify` | Interactive Trip Copilot plan updates |
+| `POST` | `/api/auth/google` | Google OAuth token verification & session creation |
+| `GET` | `/api/auth/me` | Fetch currently authenticated user |
+| `POST` | `/api/user/trips` | Save trip itinerary to user database |
+| `GET` | `/api/user/trips` | List all saved itineraries for authenticated user |
+| `GET` | `/api/user/trips/{id}` | Get full saved itinerary snapshot |
+| `DELETE` | `/api/user/trips/{id}` | Delete saved itinerary from database |
+| `GET` | `/api/health` | Healthcheck and active configuration status |
 
-No API keys belong in React environment variables. The frontend talks to your Spring Boot backend; keys stay server-side.
-
-## Next implementation milestones
-
-1. Add persistence for saved trips (PostgreSQL + Spring Data JPA).
-2. Add real flight search only if you obtain a provider with usable API access; Duffel test mode may use synthetic/sandbox offers and must be labelled accordingly.
-3. Request access to a lodging/attractions API or use search handoffs until then.
 4. Replace the estimate model with configurable, explainable cost formulas and capture assumptions per trip.
 5. Add itinerary edit/re-plan endpoint, authentication, tests and deployment.
 
