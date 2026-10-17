@@ -1,0 +1,24 @@
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: always
+
+spring:
+  application:
+    name: tripwise-api
+  jackson:
+    default-property-inclusion: non_null
+
+app:
+  frontend-origin: ${FRONTEND_ORIGIN:http://localhost:5173}
+  geoapify:
+    api-key: ${GEOAPIFY_API_KEY:}
+    base-url: https://api.geoapify.com
+  groq:
+    api-key: ${GROQ_API_KEY:}
+    model: ${GROQ_MODEL:openai/gpt-oss-120b}
+    base-url: https://api.groq.com/openai/v1
+
+logging:
+  level:
+    com.tripwise.api: INFO
