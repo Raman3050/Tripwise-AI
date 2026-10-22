@@ -235,7 +235,15 @@ export default function WizardPage({
               {error && (
                 <div className="error-banner">
                   <CircleHelp size={17} />
-                  <span>{error}<br /><small>Make sure the Spring Boot API is running at localhost:8080.</small></span>
+                  <span>
+                    {error}
+                    <br />
+                    <small>
+                      {error.toLowerCase().includes('fetch')
+                        ? 'Could not connect to the backend server. Please verify your internet connection and backend deployment.'
+                        : 'Please check your inputs and try again.'}
+                    </small>
+                  </span>
                 </div>
               )}
             </div>

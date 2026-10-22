@@ -24,7 +24,7 @@ spring:
       path: /h2-console
 
 app:
-  frontend-origin: ${FRONTEND_ORIGIN:http://localhost:5173}
+  frontend-origin: ${FRONTEND_ORIGIN:https://tripwise-ai-kappa.vercel.app,https://*.vercel.app,http://localhost:5173}
   google:
     client-id: ${GOOGLE_CLIENT_ID:}
   geoapify:
