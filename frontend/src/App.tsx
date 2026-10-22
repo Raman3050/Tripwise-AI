@@ -59,7 +59,7 @@ export default function App() {
       setPlan(result);
       setPage('results');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not generate your trip. Is the Spring Boot API running?');
+      setError(e instanceof Error ? e.message : 'Could not generate your trip. Please check that the API server is running.');
     } finally {
       setLoading(false);
     }
